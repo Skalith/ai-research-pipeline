@@ -1,0 +1,126 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: backend
+        image: research-pipeline-backend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - secretRef:
+            name: research-pipeline-secrets
+        - configMapRef:
+            name: research-config
+        env:
+        - name: REPORT_OUTPUT_DIR
+          value: "/app/reports"
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/ready
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: reports
+          mountPath: /app/reports
+      volumes:
+      - name: reports
+        emptyDir: {}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: celery-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: celery-worker
+  template:
+    metadata:
+      labels:
+        app: celery-worker
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: worker
+        image: research-pipeline-backend:latest
+        command: ["celery", "-A", "app.workers.celery_app.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+        envFrom:
+        - secretRef:
+            name: research-pipeline-secrets
+        - configMapRef:
+            name: research-config
+        resources:
+          limits:
+            cpu: "1"
+            memory: "1Gi"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+      containers:
+      - name: frontend
+        image: research-pipeline-frontend:latest
+        ports:
+        - containerPort: 80
+        resources:
+          limits:
+            cpu: "500m"
+            memory: "256Mi"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5

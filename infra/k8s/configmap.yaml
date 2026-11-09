@@ -1,0 +1,10 @@
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: research-config
+data:
+  ENVIRONMENT: "production"
+  EMBEDDING_DIM: "1536"
+  REPORT_OUTPUT_DIR: "/app/reports"
+  CORS_ORIGINS: '["https://yourdomain.com"]'
